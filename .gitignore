@@ -1,0 +1,6 @@
+.env
+*.db
+sa-key.json
+file-garage
+fg-cli/fg
+fg-cli/fg.exe
