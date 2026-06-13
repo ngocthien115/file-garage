@@ -4,20 +4,15 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
-# Install build tools required by go-sqlite3 (cgo, gcc, sqlite headers)
-RUN apk add --no-cache gcc musl-dev sqlite-dev
-
 # Copy go.mod (go.sum will be generated later) and resolve dependencies
 COPY go.mod .
-# Explicitly fetch the sqlite3 module to create go.sum entry
-RUN go get github.com/mattn/go-sqlite3@v1.14.22
 RUN go mod tidy
 
 # Copy source code
 COPY . .
 
-# Build the binary (cgo enabled for sqlite3)
-RUN CGO_ENABLED=1 GOOS=linux go build -o server
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o server
 
 # ---- Run stage ----
 FROM alpine:3.20

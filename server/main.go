@@ -6,7 +6,7 @@ import (
     "fmt"
     "net/http"
     "os"
-    _ "github.com/mattn/go-sqlite3"
+    _ "modernc.org/sqlite"
 )
 
 type linkEntry struct {
@@ -19,7 +19,7 @@ type server struct {
 }
 
 func newServer(dbPath string) *server {
-    db, err := sql.Open("sqlite3", dbPath)
+    db, err := sql.Open("sqlite", dbPath)
     if err != nil {
         fmt.Fprintf(os.Stderr, "failed to open sqlite db: %v\n", err)
         os.Exit(1)

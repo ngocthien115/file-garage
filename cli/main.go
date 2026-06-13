@@ -14,8 +14,8 @@ import (
 
 const (
     tempUploadURL   = "https://temp.sh/upload"
-    serverUploadURL = "https://file.vkanis.xyz/api/upload"
-    listURL         = "https://file.vkanis.xyz/api/list"
+    serverUploadURL = "http://localhost:8080/api/upload"
+    listURL         = "http://localhost:8080/api/list"
     // linksFileName removed: no longer storing links locally
 )
 
