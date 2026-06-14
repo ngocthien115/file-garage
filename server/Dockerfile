@@ -9,6 +9,8 @@ RUN apk add --no-cache gcc musl-dev sqlite-dev
 
 # Copy go.mod (go.sum will be generated later) and resolve dependencies
 COPY go.mod .
+# Explicitly fetch the sqlite3 module to create go.sum entry
+RUN go get github.com/mattn/go-sqlite3@v1.14.22
 RUN go mod tidy
 
 # Copy source code
