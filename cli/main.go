@@ -93,8 +93,17 @@ func listCommand() error {
     if err != nil {
         return err
     }
-    var links []string
-    if jsonErr := json.Unmarshal(bodyBytes, &links); jsonErr != nil {
+    // api list response with
+    // [
+    //   {
+    //     "fileName": "file-name-here.docx",
+    //     "url": "https://temp.sh/abcxyz/file-name-here.docx"
+    //   }
+    // ]
+    // parse this json to display file name and URL nicely, like
+    // fileName.docx -> https://temp.sh/abcxyz/file-name-here.docx
+    var entries []serverPayload
+    if jsonErr := json.Unmarshal(bodyBytes, &entries); jsonErr != nil {
         // Assume plain text with one link per line
         lines := strings.Split(strings.TrimSpace(string(bodyBytes)), "\n")
         for _, l := range lines {
@@ -108,13 +117,13 @@ func listCommand() error {
         }
         return nil
     }
-    // JSON array of URLs – display file name and URL nicely
-    for _, l := range links {
-        name := extractFileName(l)
+    // JSON array of objects – display file name and URL nicely
+    for _, entry := range entries {
+        name := entry.FileName
         if name == "" {
-            fmt.Println(l)
+            fmt.Println(entry.URL)
         } else {
-            fmt.Printf("%s -> %s\n", name, l)
+            fmt.Printf("%s -> %s\n", name, entry.URL)
         }
     }
     return nil
