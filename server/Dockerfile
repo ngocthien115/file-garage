@@ -17,10 +17,10 @@ RUN go mod tidy
 COPY . .
 
 # Build the binary (cgo enabled for sqlite3)
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o server
+RUN CGO_ENABLED=1 GOOS=linux go build -o server
 
 # ---- Run stage ----
-FROM alpine:latest
+FROM alpine:3.20
 WORKDIR /app
 
 # Copy the compiled binary from builder

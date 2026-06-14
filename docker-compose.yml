@@ -1,12 +1,13 @@
-version: '3.8'
+version: "3.8"
 
 services:
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
+    container_name: file-garage-server
     ports:
-      - "5000:8080"
+      - "8080:8080"
     volumes:
-      - ./server/data:/app/data   # persist SQLite DB
+      - ./server/data:/app/data
     restart: unless-stopped
