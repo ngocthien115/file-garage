@@ -4,15 +4,18 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
-# Copy go.mod and go.sum (if present) and download dependencies
+# Install build tools required by go-sqlite3 (cgo, gcc, sqlite headers)
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+# Copy go.mod (go.sum will be generated later) and resolve dependencies
 COPY go.mod .
-RUN go mod download
+RUN go mod tidy
 
 # Copy source code
 COPY . .
 
-# Build the binary (static)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server
+# Build the binary (cgo enabled for sqlite3)
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o server
 
 # ---- Run stage ----
 FROM alpine:latest

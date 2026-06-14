@@ -82,7 +82,8 @@ func (s *server) listHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    srv := newServer("links.db")
+    // Store the SQLite file inside the mounted data volume
+    srv := newServer("data/links.db")
     http.HandleFunc("/api/upload", srv.uploadHandler)
     http.HandleFunc("/api/list", srv.listHandler)
     fmt.Println("Server listening on :8080")
