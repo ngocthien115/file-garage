@@ -16,7 +16,6 @@ const (
     tempUploadURL   = "https://temp.sh/upload"
     serverUploadURL = "http://localhost:8080/api/upload"
     listURL         = "http://localhost:8080/api/list"
-    // linksFileName removed: no longer storing links locally
 )
 
 type serverPayload struct {
@@ -72,11 +71,7 @@ func uploadCommand(filePath string) error {
     }
     fmt.Println("Link registered on server")
 
-    // 4. Append link to local storage
-    if err := appendLink(link); err != nil {
-        return fmt.Errorf("failed to store link locally: %w", err)
-    }
-    fmt.Println("Link saved locally")
+    // No longer storing link locally; upload to server is sufficient
     return nil
 }
 
