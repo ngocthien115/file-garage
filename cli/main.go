@@ -16,7 +16,7 @@ const (
     tempUploadURL   = "https://temp.sh/upload"
     serverUploadURL = "https://file.vkanis.xyz/api/upload"
     listURL         = "https://file.vkanis.xyz/api/list"
-    linksFileName   = "links.txt"
+    // linksFileName removed: no longer storing links locally
 )
 
 type serverPayload struct {
@@ -103,12 +103,24 @@ func listCommand() error {
         // Assume plain text with one link per line
         lines := strings.Split(strings.TrimSpace(string(bodyBytes)), "\n")
         for _, l := range lines {
-            fmt.Println(l)
+            // Derive file name from the URL for nicer output
+            name := extractFileName(l)
+            if name == "" {
+                fmt.Println(l)
+            } else {
+                fmt.Printf("%s -> %s\n", name, l)
+            }
         }
         return nil
     }
+    // JSON array of URLs – display file name and URL nicely
     for _, l := range links {
-        fmt.Println(l)
+        name := extractFileName(l)
+        if name == "" {
+            fmt.Println(l)
+        } else {
+            fmt.Printf("%s -> %s\n", name, l)
+        }
     }
     return nil
 }

@@ -62,23 +62,24 @@ func (s *server) listHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
         return
     }
-    rows, err := s.db.Query("SELECT url FROM links")
+    // Retrieve both filename and URL for each entry
+    rows, err := s.db.Query("SELECT filename, url FROM links")
     if err != nil {
         http.Error(w, fmt.Sprintf("query error: %v", err), http.StatusInternalServerError)
         return
     }
     defer rows.Close()
-    var urls []string
+    var entries []linkEntry
     for rows.Next() {
-        var u string
-        if err := rows.Scan(&u); err != nil {
+        var e linkEntry
+        if err := rows.Scan(&e.FileName, &e.URL); err != nil {
             http.Error(w, fmt.Sprintf("scan error: %v", err), http.StatusInternalServerError)
             return
         }
-        urls = append(urls, u)
+        entries = append(entries, e)
     }
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(urls)
+    json.NewEncoder(w).Encode(entries)
 }
 
 func main() {
