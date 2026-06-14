@@ -194,14 +194,4 @@ func postToServer(fileName, url string) error {
     return nil
 }
 
-func appendLink(link string) error {
-    f, err := os.OpenFile(linksFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-    if err != nil {
-        return err
-    }
-    defer f.Close()
-    if _, err := f.WriteString(link + "\n"); err != nil {
-        return err
-    }
-    return nil
-}
+// The appendLink function has been removed because links are now stored only on the server.
