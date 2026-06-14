@@ -4,25 +4,24 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
-# Copy go.mod (go.sum will be generated later) and resolve dependencies
-COPY go.mod .
-RUN go mod tidy
+# Cache go.mod and go.sum
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
 
-# Copy source code
-COPY . .
+# Copy the source code
+COPY . ./
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o server
+# Build the binary (disable CGO for a static binary)
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
 # ---- Run stage ----
-FROM alpine:3.20
+FROM alpine:latest
 WORKDIR /app
-
-# Copy the compiled binary from builder
 COPY --from=builder /app/server .
 
-# Expose the port the server listens on (8080 inside container)
+# Expose the port the server listens on (adjust if needed)
 EXPOSE 8080
 
-# Set entrypoint
+# Run the server binary
 CMD ["./server"]

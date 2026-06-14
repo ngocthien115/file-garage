@@ -1,13 +1,10 @@
-version: "3.8"
+version: "3.9"
 
 services:
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: file-garage-server
     ports:
       - "8080:8080"
-    volumes:
-      - ./server/data:/app/data
     restart: unless-stopped
