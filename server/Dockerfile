@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build stage ----
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
+RUN mkdir -p /app/data
 
 # Cache go.mod and go.sum
 COPY go.mod ./
@@ -19,6 +20,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/server .
+# Ensure the data directory exists for SQLite file
+RUN mkdir -p data
 
 # Expose the port the server listens on (adjust if needed)
 EXPOSE 8080
