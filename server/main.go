@@ -45,6 +45,34 @@ func newServer(dbPath string) *server {
 	return &server{db: db}
 }
 
+var allowedOrigins = []string{
+	"http://localhost:8081",
+}
+
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+
+		// Check if origin is allowed
+		for _, allowed := range allowedOrigins {
+			if allowed == origin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
+
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 func (s *server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -109,8 +137,8 @@ func (s *server) clearExpiredRecords() {
 func main() {
 	// Store the SQLite file inside the mounted data volume
 	srv := newServer("data/links.db")
-	http.HandleFunc("/api/upload", srv.uploadHandler)
-	http.HandleFunc("/api/list", srv.listHandler)
+	http.HandleFunc("/api/upload", corsMiddleware(srv.uploadHandler))
+	http.HandleFunc("/api/list", corsMiddleware(srv.listHandler))
 
 	// Set up cron job to clear expired records every hour
 	c := cron.New()
