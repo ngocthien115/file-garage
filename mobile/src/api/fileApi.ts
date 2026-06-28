@@ -2,12 +2,8 @@ import client from "./client";
 import { FileItem } from "../types/FileItem";
 
 export async function getListFiles(): Promise<FileItem[]> {
-  try {
-    const response = await client.get<FileItem[]>("/api/list");
-    return response.data;
-  } catch {
-    return [];
-  }
+  const response = await client.get<FileItem[]>("/api/list");
+  return response.data ?? [];
 }
 
 export async function uploadFile(file: {

@@ -8,6 +8,9 @@ import {
   RefreshControl,
   Alert,
   Linking,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -45,19 +48,35 @@ export default function FileListScreen() {
 
   if (state.type === 'loading') {
     return (
-      <View style={styles.center}>
-        <Text>Loading...</Text>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <SafeAreaView style={styles.headerSafe}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>File Garage</Text>
+          </View>
+        </SafeAreaView>
+        <View style={styles.center}>
+          <Text>Loading...</Text>
+        </View>
       </View>
     );
   }
 
   if (state.type === 'error') {
     return (
-      <View style={styles.center}>
-        <Text>Error: {state.message}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadFiles}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <SafeAreaView style={styles.headerSafe}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>File Garage</Text>
+          </View>
+        </SafeAreaView>
+        <View style={styles.center}>
+          <Text>Error: {state.message}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadFiles}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -66,35 +85,38 @@ export default function FileListScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>File Garage</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={loadFiles} style={styles.iconButton}>
-            <Ionicons name="refresh" size={24} color="#333" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handlePickFile} style={styles.iconButton}>
-            <Ionicons name="cloud-upload-outline" size={24} color="#333" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <FlatList
-        data={files}
-        keyExtractor={(item, index) => `${item.fileName}-${index}`}
-        renderItem={({ item }: { item: FileItem }) => (
-          <FileListItem file={item} onPress={() => openFile(item.url)} />
-        )}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.center}>
-            <Text>No files found. Pull down to refresh or upload a file.</Text>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <SafeAreaView style={styles.headerSafe}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>File Garage</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={loadFiles} style={styles.iconButton}>
+              <Ionicons name="refresh" size={24} color="#333" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handlePickFile} style={styles.iconButton}>
+              <Ionicons name="cloud-upload-outline" size={24} color="#333" />
+            </TouchableOpacity>
           </View>
-        }
-      />
-    </View>
+        </View>
+      </SafeAreaView>
+
+        <FlatList
+          data={files}
+          keyExtractor={(item, index) => `${item.fileName}-${index}`}
+          renderItem={({ item }: { item: FileItem }) => (
+            <FileListItem file={item} onPress={() => openFile(item.url)} />
+          )}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <Text>No files found. Pull down to refresh or upload a file.</Text>
+            </View>
+          }
+        />
+      </View>
   );
 }
 
@@ -110,6 +132,9 @@ function FileListItem({ file, onPress }: { file: FileItem; onPress: () => void }
 }
 
 const styles = StyleSheet.create({
+  headerSafe: {
+    backgroundColor: '#fff',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

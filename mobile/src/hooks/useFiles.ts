@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { getListFiles } from '../api/fileApi';
 import { FileItem } from '../types/FileItem';
 
@@ -19,6 +19,10 @@ export function useFiles() {
       setState({ type: 'error', message: e?.message || 'Unknown error' });
     }
   }, []);
+
+  useEffect(() => {
+    loadFiles();
+  }, [loadFiles]);
 
   return { state, loadFiles };
 }
