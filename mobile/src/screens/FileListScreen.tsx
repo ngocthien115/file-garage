@@ -134,6 +134,7 @@ function FileListItem({ file, onPress }: { file: FileItem; onPress: () => void }
 const styles = StyleSheet.create({
   headerSafe: {
     backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0,
   },
   container: {
     flex: 1,
