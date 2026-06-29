@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useFiles } from '../hooks/useFiles';
 import { FileItem } from '../types/FileItem';
+import { uploadFile } from '../api/fileApi';
 
 export default function FileListScreen() {
   const { state, loadFiles } = useFiles();
@@ -34,10 +35,16 @@ export default function FileListScreen() {
         copyToCacheDirectory: true,
       });
       if (!result.canceled) {
-        Alert.alert('File selected', result.assets[0].name);
+        // Alert.alert('File selected', result.assets[0].name);
+        await uploadFile({
+          uri: result.assets[0].uri,
+          name: result.assets[0].name,
+        });
+
         loadFiles();
       }
-    } catch {
+    } catch(err) {
+      console.error(err);
       Alert.alert('Error', 'Failed to pick file');
     }
   };

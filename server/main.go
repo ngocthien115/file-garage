@@ -45,22 +45,9 @@ func newServer(dbPath string) *server {
 	return &server{db: db}
 }
 
-var allowedOrigins = []string{
-	"http://localhost:8081",
-}
-
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-
-		// Check if origin is allowed
-		for _, allowed := range allowedOrigins {
-			if allowed == origin {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				break
-			}
-		}
-
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
