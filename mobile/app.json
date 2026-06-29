@@ -29,6 +29,12 @@
     },
     "plugins": [
       "expo-splash-screen"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "eb3d9da3-0733-4257-adbf-09a4ef8eec1c"
+      }
+    },
+    "owner": "ngthien115s-team"
   }
 }
