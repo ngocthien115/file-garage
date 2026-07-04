@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
-import SplashScreenComponent from './src/screens/SplashScreen';
-import FileListScreen from './src/screens/FileListScreen';
+import React, { useState, useCallback } from "react";
+import { StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import SplashScreenComponent from "./src/screens/SplashScreen";
+import FileListScreen from "./src/screens/FileListScreen";
+import { colors } from "./src/theme";
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -10,20 +12,20 @@ export default function App() {
     setShowSplash(false);
   }, []);
 
-  if (showSplash) {
-    return <SplashScreenComponent onFinish={handleSplashFinish} />;
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
+    <GestureHandlerRootView style={styles.root}>
+      {/* FileListScreen stays mounted underneath so it's ready when splash fades out. */}
       <FileListScreen />
-    </SafeAreaView>
+      {showSplash ? (
+        <SplashScreenComponent onFinish={handleSplashFinish} />
+      ) : null}
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
 });

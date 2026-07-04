@@ -1,22 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   RefreshControl,
   Alert,
   Linking,
   SafeAreaView,
   Platform,
   StatusBar,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
-import { useFiles } from '../hooks/useFiles';
-import { FileItem } from '../types/FileItem';
-import { uploadFile } from '../api/fileApi';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as Haptics from "expo-haptics";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withSequence,
+  Easing,
+} from "react-native-reanimated";
+import { useFiles } from "../hooks/useFiles";
+import { FileItem } from "../types/FileItem";
+import { uploadFile } from "../api/fileApi";
+import FileListItem from "../components/FileListItem";
+import SkeletonCard from "../components/SkeletonCard";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
+import { colors, spacing, radii, shadows } from "../theme";
+
+const SKELETON_COUNT = 6;
 
 export default function FileListScreen() {
   const { state, loadFiles } = useFiles();
@@ -31,21 +47,24 @@ export default function FileListScreen() {
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: "*/*",
         copyToCacheDirectory: true,
       });
       if (!result.canceled) {
-        // Alert.alert('File selected', result.assets[0].name);
         await uploadFile({
           uri: result.assets[0].uri,
           name: result.assets[0].name,
         });
-
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         loadFiles();
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to pick file');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        "Upload failed",
+        "Could not upload the selected file. Please try again.",
+      );
     }
   };
 
@@ -53,154 +72,211 @@ export default function FileListScreen() {
     Linking.openURL(url);
   };
 
-  if (state.type === 'loading') {
-    return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-        <SafeAreaView style={styles.headerSafe}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>File Garage</Text>
-          </View>
-        </SafeAreaView>
-        <View style={styles.center}>
-          <Text>Loading...</Text>
+  const renderContent = () => {
+    if (state.type === "loading") {
+      return (
+        <View style={styles.listContent}>
+          {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </View>
-      </View>
-    );
-  }
+      );
+    }
 
-  if (state.type === 'error') {
+    if (state.type === "error") {
+      return <ErrorState message={state.message} onRetry={loadFiles} />;
+    }
+
+    const files = state.files;
+
+    if (files.length === 0) {
+      return (
+        <EmptyState
+          icon="cloud-upload-outline"
+          title="No files yet"
+          subtitle="Upload your first file to get started."
+          ctaLabel="Upload a file"
+          onCta={handlePickFile}
+        />
+      );
+    }
+
     return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-        <SafeAreaView style={styles.headerSafe}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>File Garage</Text>
-          </View>
-        </SafeAreaView>
-        <View style={styles.center}>
-          <Text>Error: {state.message}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadFiles}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <FlatList
+        data={files}
+        keyExtractor={(item, index) => `${item.fileName}-${index}`}
+        renderItem={({ item, index }: { item: FileItem; index: number }) => (
+          <FileListItem
+            file={item}
+            onPress={() => openFile(item.url)}
+            index={index}
+          />
+        )}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      />
     );
-  }
-
-  const files = state.files;
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.card} />
       <SafeAreaView style={styles.headerSafe}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>File Garage</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={loadFiles} style={styles.iconButton}>
-              <Ionicons name="refresh" size={24} color="#333" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handlePickFile} style={styles.iconButton}>
-              <Ionicons name="cloud-upload-outline" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Header onPickFile={handlePickFile} onRefresh={loadFiles} />
       </SafeAreaView>
-
-        <FlatList
-          data={files}
-          keyExtractor={(item, index) => `${item.fileName}-${index}`}
-          renderItem={({ item }: { item: FileItem }) => (
-            <FileListItem file={item} onPress={() => openFile(item.url)} />
-          )}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text>No files found. Pull down to refresh or upload a file.</Text>
-            </View>
-          }
-        />
-      </View>
+      <View style={styles.body}>{renderContent()}</View>
+    </View>
   );
 }
 
-function FileListItem({ file, onPress }: { file: FileItem; onPress: () => void }) {
+interface HeaderProps {
+  onPickFile: () => void;
+  onRefresh: () => void;
+}
+
+function Header({ onPickFile, onRefresh }: HeaderProps) {
+  const refreshRotation = useSharedValue(0);
+  const uploadPressed = useSharedValue(0);
+
+  const handleRefresh = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    refreshRotation.value = withSequence(
+      withTiming(360, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+      // reset to 0 instantly so next spin starts fresh
+      withTiming(0, { duration: 0 }),
+    );
+    onRefresh();
+  }, [refreshRotation, onRefresh]);
+
+  const handleUploadPressIn = useCallback(() => {
+    uploadPressed.value = withSpring(1, { damping: 15, stiffness: 300 });
+  }, [uploadPressed]);
+
+  const handleUploadPressOut = useCallback(() => {
+    uploadPressed.value = withSpring(0, { damping: 15, stiffness: 300 });
+  }, [uploadPressed]);
+
+  const handleUpload = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPickFile();
+  }, [onPickFile]);
+
+  const refreshStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${refreshRotation.value}deg` }],
+  }));
+
+  const uploadStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - uploadPressed.value * 0.1 }],
+  }));
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Ionicons name="document-outline" size={24} color="#666" />
-      <Text style={styles.fileName} numberOfLines={1}>
-        {file.fileName}
-      </Text>
-    </TouchableOpacity>
+    <View style={styles.header}>
+      <View style={styles.brand}>
+        <View style={styles.brandIcon}>
+          <Ionicons name="cloud" size={20} color={colors.primary} />
+        </View>
+        <Text style={styles.headerTitle}>File Garage</Text>
+      </View>
+      <View style={styles.headerActions}>
+        <Pressable
+          style={styles.iconButton}
+          onPress={handleRefresh}
+          hitSlop={8}
+        >
+          <Animated.View style={refreshStyle}>
+            <Ionicons name="refresh" size={22} color={colors.text} />
+          </Animated.View>
+        </Pressable>
+        <AnimatedPressable
+          style={[styles.uploadButton, uploadStyle]}
+          onPressIn={handleUploadPressIn}
+          onPressOut={handleUploadPressOut}
+          onPress={handleUpload}
+        >
+          <Ionicons
+            name="cloud-upload-outline"
+            size={20}
+            color={colors.textInverse}
+          />
+          <Text style={styles.uploadLabel}>Upload</Text>
+        </AnimatedPressable>
+      </View>
+    </View>
   );
 }
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const styles = StyleSheet.create({
-  headerSafe: {
-    backgroundColor: '#fff',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0,
-  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
+  },
+  headerSafe: {
+    backgroundColor: colors.card,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 24) : 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  brand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  brandIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primaryTint,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.text,
   },
   headerActions: {
-    flexDirection: 'row',
-    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   iconButton: {
-    padding: 4,
+    padding: spacing.xs,
+  },
+  uploadButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    ...shadows.card,
+  },
+  uploadLabel: {
+    color: colors.textInverse,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  body: {
+    flex: 1,
   },
   listContent: {
-    padding: 16,
-    gap: 8,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    gap: 12,
-  },
-  fileName: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  retryButton: {
-    marginTop: 16,
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    padding: spacing.lg,
   },
 });
