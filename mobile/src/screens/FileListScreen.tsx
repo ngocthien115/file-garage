@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   RefreshControl,
+  ScrollView,
   Alert,
   Linking,
   SafeAreaView,
@@ -19,141 +20,221 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
-  withSequence,
-  Easing,
 } from "react-native-reanimated";
 import { useFiles } from "../hooks/useFiles";
-import { FileItem } from "../types/FileItem";
-import { uploadFile } from "../api/fileApi";
+import { useServerSettings } from "../hooks/useServerSettings";
+import ApiSettingsModal from "../components/ApiSettingsModal";
 import FileListItem from "../components/FileListItem";
-import SkeletonCard from "../components/SkeletonCard";
+import LoadingScreen from "../components/LoadingScreen";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { colors, spacing, radii, shadows } from "../theme";
 
-const SKELETON_COUNT = 6;
-
 export default function FileListScreen() {
-  const { state, loadFiles } = useFiles();
+  const settings = useServerSettings();
+  const { state, loadFiles, startUpload, retryUpload } = useFiles(settings.ready ? settings.baseURL : undefined);
   const [refreshing, setRefreshing] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const pickerOpen = useRef(false);
+  const showListLoading = state.loading && !refreshing && (state.files.length === 0 || reloading);
+
+  useEffect(() => {
+    setRefreshing(false);
+    setReloading(false);
+  }, [settings.baseURL]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadFiles();
-    setRefreshing(false);
+    try {
+      await loadFiles();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      await loadFiles();
+    } finally {
+      setReloading(false);
+    }
   };
 
   const handlePickFile = async () => {
+    if (!settings.ready || pickerOpen.current) return;
+    pickerOpen.current = true;
+    let result: DocumentPicker.DocumentPickerResult;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
+      result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
-        copyToCacheDirectory: true,
+        // Android grants access to the original content URI. In Expo Go,
+        // the picker's shared cache can be outside FileSystem's app sandbox.
+        copyToCacheDirectory: Platform.OS !== "android",
       });
-      if (!result.canceled) {
-        await uploadFile({
-          uri: result.assets[0].uri,
-          name: result.assets[0].name,
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        loadFiles();
-      }
     } catch (err) {
       console.error(err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
-        "Upload failed",
-        "Could not upload the selected file. Please try again.",
+        "Could not select file",
+        "Please try selecting the file again.",
+      );
+      return;
+    } finally {
+      pickerOpen.current = false;
+    }
+    if (!result.canceled) {
+      // Show the new upload row immediately, even if a list request is pending.
+      setReloading(false);
+      const success = await startUpload(result.assets[0]);
+      Haptics.notificationAsync(
+        success
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Error,
       );
     }
+  };
+
+  const handleRetry = async (id: string) => {
+    const success = await retryUpload(id);
+    if (success === undefined) return;
+    Haptics.notificationAsync(
+      success
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Error,
+    );
   };
 
   const openFile = (url: string) => {
     Linking.openURL(url);
   };
 
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={colors.primary}
+      colors={[colors.primary]}
+    />
+  );
+
   const renderContent = () => {
-    if (state.type === "loading") {
-      return (
-        <View style={styles.listContent}>
-          {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </View>
-      );
-    }
-
-    if (state.type === "error") {
-      return <ErrorState message={state.message} onRetry={loadFiles} />;
-    }
-
     const files = state.files;
+    if (files.length === 0 && state.loading && !refreshing) {
+      return null;
+    }
 
     if (files.length === 0) {
       return (
-        <EmptyState
-          icon="cloud-upload-outline"
-          title="No files yet"
-          subtitle="Upload your first file to get started."
-          ctaLabel="Upload a file"
-          onCta={handlePickFile}
-        />
+        <ScrollView
+          contentContainerStyle={styles.emptyListContent}
+          refreshControl={refreshControl}
+          alwaysBounceVertical
+        >
+          {state.error ? (
+            <ErrorState message={state.error} onRetry={handleReload} />
+          ) : (
+            <EmptyState
+              icon="cloud-upload-outline"
+              title="No files yet"
+              subtitle="Upload your first file to get started."
+              ctaLabel="Upload a file"
+              onCta={handlePickFile}
+            />
+          )}
+        </ScrollView>
       );
     }
 
     return (
       <FlatList
         data={files}
-        keyExtractor={(item, index) => `${item.fileName}-${index}`}
-        renderItem={({ item, index }: { item: FileItem; index: number }) => (
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
           <FileListItem
             file={item}
-            onPress={() => openFile(item.url)}
-            index={index}
+            onPress={() => {
+              if (item.status === "ready" && item.url) openFile(item.url);
+            }}
+            onRetry={() => {
+              void handleRetry(item.id);
+            }}
           />
         )}
         contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
+        ListHeaderComponent={
+          state.error ? (
+            <Pressable
+              onPress={handleReload}
+              style={styles.refreshError}
+              accessibilityRole="button"
+            >
+              <Text style={styles.refreshErrorText}>
+                Could not refresh files. Tap to retry.
+              </Text>
+            </Pressable>
+          ) : undefined
         }
+        refreshControl={refreshControl}
+        alwaysBounceVertical
       />
     );
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.card} />
+      <StatusBar barStyle="dark-content" />
       <SafeAreaView style={styles.headerSafe}>
-        <Header onPickFile={handlePickFile} onRefresh={loadFiles} />
+        <Header onPickFile={handlePickFile} uploadDisabled={!settings.ready} />
+        <Pressable
+          style={styles.serverButton}
+          onPress={() => setSettingsVisible(true)}
+          disabled={!settings.ready}
+          accessibilityRole="button"
+          accessibilityLabel={`API server settings. Current server: ${settings.baseURL}`}
+        >
+          <Ionicons name="server-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.serverURL} numberOfLines={1} ellipsizeMode="middle">
+            {settings.ready ? settings.baseURL : "Loading server settings…"}
+          </Text>
+          <Ionicons name="options-outline" size={18} color={colors.primary} />
+        </Pressable>
       </SafeAreaView>
-      <View style={styles.body}>{renderContent()}</View>
+      <View style={styles.body}>
+        <View
+          style={styles.body}
+          pointerEvents={showListLoading ? "none" : "auto"}
+          accessibilityElementsHidden={showListLoading}
+          importantForAccessibility={showListLoading ? "no-hide-descendants" : "auto"}
+        >
+          {renderContent()}
+        </View>
+        {showListLoading && (
+          <View style={styles.loadingOverlay}>
+            <LoadingScreen />
+          </View>
+        )}
+      </View>
+      {settingsVisible && (
+        <ApiSettingsModal
+          baseURL={settings.baseURL}
+          recentURLs={settings.recentURLs}
+          uploading={state.files.some((file) => file.status === "uploading" || file.status === "saving")}
+          onClose={() => setSettingsVisible(false)}
+        />
+      )}
     </View>
   );
 }
 
 interface HeaderProps {
   onPickFile: () => void;
-  onRefresh: () => void;
+  uploadDisabled: boolean;
 }
 
-function Header({ onPickFile, onRefresh }: HeaderProps) {
-  const refreshRotation = useSharedValue(0);
+function Header({ onPickFile, uploadDisabled }: HeaderProps) {
   const uploadPressed = useSharedValue(0);
-
-  const handleRefresh = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    refreshRotation.value = withSequence(
-      withTiming(360, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-      // reset to 0 instantly so next spin starts fresh
-      withTiming(0, { duration: 0 }),
-    );
-    onRefresh();
-  }, [refreshRotation, onRefresh]);
 
   const handleUploadPressIn = useCallback(() => {
     uploadPressed.value = withSpring(1, { damping: 15, stiffness: 300 });
@@ -168,10 +249,6 @@ function Header({ onPickFile, onRefresh }: HeaderProps) {
     onPickFile();
   }, [onPickFile]);
 
-  const refreshStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${refreshRotation.value}deg` }],
-  }));
-
   const uploadStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - uploadPressed.value * 0.1 }],
   }));
@@ -185,17 +262,11 @@ function Header({ onPickFile, onRefresh }: HeaderProps) {
         <Text style={styles.headerTitle}>File Garage</Text>
       </View>
       <View style={styles.headerActions}>
-        <Pressable
-          style={styles.iconButton}
-          onPress={handleRefresh}
-          hitSlop={8}
-        >
-          <Animated.View style={refreshStyle}>
-            <Ionicons name="refresh" size={22} color={colors.text} />
-          </Animated.View>
-        </Pressable>
         <AnimatedPressable
           style={[styles.uploadButton, uploadStyle]}
+          disabled={uploadDisabled}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: uploadDisabled }}
           onPressIn={handleUploadPressIn}
           onPressOut={handleUploadPressOut}
           onPress={handleUpload}
@@ -215,6 +286,32 @@ function Header({ onPickFile, onRefresh }: HeaderProps) {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const styles = StyleSheet.create({
+  serverButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 44,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.sm,
+    backgroundColor: colors.background,
+  },
+  serverURL: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  refreshError: {
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.errorTint,
+  },
+  refreshErrorText: {
+    color: colors.error,
+    fontSize: 13,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -255,9 +352,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
-  iconButton: {
-    padding: spacing.xs,
-  },
   uploadButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -276,7 +370,18 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   listContent: {
     padding: spacing.lg,
+    flexGrow: 1,
+  },
+  emptyListContent: {
+    flexGrow: 1,
   },
 });

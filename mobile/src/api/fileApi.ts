@@ -1,40 +1,31 @@
-import client from "./client";
+import client, { clientReady } from "./client";
 import { FileItem } from "../types/FileItem";
+import { uploadToStorage, type UploadFile } from "./storageApi";
 
-export async function getListFiles(): Promise<FileItem[]> {
-  const response = await client.get<FileItem[]>("/api/list");
+export async function getListFiles(baseURL?: string): Promise<FileItem[]> {
+  await clientReady;
+  const response = await client.get<FileItem[]>("/api/list", { baseURL: baseURL ?? client.defaults.baseURL });
   return response.data ?? [];
 }
 
-export async function uploadFile(file: {
-  name: string;
-  uri: string;
-}): Promise<void> {
-  // Step 1: Upload file to temp.sh first
-  const formData = new FormData();
-  // React Native FormData can handle file:// URIs directly
-  formData.append("file", {
-    uri: file.uri,
-    type: "application/octet-stream",
-    name: file.name,
-  } as any);
-  
-  const tempShResponse = await fetch("https://temp.sh/upload", {
-    method: "POST",
-    body: formData,
-  });
-  
-  if (!tempShResponse.ok) {
-    throw new Error(`Failed to upload to temp.sh: ${tempShResponse.statusText}`);
-  }
-  
-  // Step 2: Get URL from temp.sh response (plain text, just trim whitespace)
-  const tempShText = await tempShResponse.text();
-  const tempUrl = tempShText.trim();
-  
-  // Step 3: Upload metadata with temp.sh URL to your API
-  await client.post("/api/upload", {
-    fileName: file.name,
-    url: tempUrl,
-  });
+interface UploadOptions {
+  baseURL?: string;
+  storedUrl?: string;
+  onStored?: (url: string) => void;
+}
+
+export async function uploadFile(
+  file: UploadFile,
+  options: UploadOptions = {},
+): Promise<FileItem> {
+  await clientReady;
+  // Pin both stages to the server selected when this upload started.
+  const baseURL = options.baseURL ?? client.defaults.baseURL;
+  const url = options.storedUrl ?? await uploadToStorage(file);
+  options.onStored?.(url);
+  const item = { fileName: file.name, url };
+
+  // Only register metadata after storage has returned a valid link.
+  await client.post("/api/upload", item, { baseURL });
+  return item;
 }

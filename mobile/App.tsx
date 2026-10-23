@@ -14,7 +14,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      {/* FileListScreen stays mounted underneath so it's ready when splash fades out. */}
+      {/* Load the list in parallel; the splash finishes on its own timer. */}
       <FileListScreen />
       {showSplash ? (
         <SplashScreenComponent onFinish={handleSplashFinish} />

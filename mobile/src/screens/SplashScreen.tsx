@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as SplashScreen from "expo-splash-screen";
 import Animated, {
@@ -8,13 +8,15 @@ import Animated, {
   withTiming,
   withSpring,
   withDelay,
+  cancelAnimation,
   Easing,
-  runOnJS,
 } from "react-native-reanimated";
 import { colors, spacing } from "../theme";
-import { getListFiles } from "../api/fileApi";
 
-SplashScreen.preventAutoHideAsync();
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const SPLASH_DURATION_MS = 1000;
+const FADE_DURATION_MS = 250;
 
 interface SplashScreenComponentProps {
   onFinish: () => void;
@@ -34,25 +36,23 @@ export default function SplashScreenComponent({
     logoOpacity.value = withTiming(1, { duration: 300 });
     titleOpacity.value = withDelay(150, withTiming(1, { duration: 300 }));
 
-    async function prepare() {
-      try {
-        await getListFiles();
-      } catch {
-        // ignore errors during splash — list screen will surface them.
-      } finally {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-        await SplashScreen.hideAsync();
-        // Exit: fade the whole splash out, then notify parent.
-        rootOpacity.value = withTiming(
-          0,
-          { duration: 350, easing: Easing.inOut(Easing.ease) },
-          (finished) => {
-            if (finished) runOnJS(onFinish)();
-          },
-        );
-      }
-    }
-    prepare();
+    // Splash timing is independent of the list request running underneath it.
+    const fadeTimer = setTimeout(() => {
+      rootOpacity.value = withTiming(0, {
+        duration: FADE_DURATION_MS,
+        easing: Easing.inOut(Easing.ease),
+      });
+    }, SPLASH_DURATION_MS - FADE_DURATION_MS);
+    const finishTimer = setTimeout(onFinish, SPLASH_DURATION_MS);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(finishTimer);
+      cancelAnimation(logoScale);
+      cancelAnimation(logoOpacity);
+      cancelAnimation(titleOpacity);
+      cancelAnimation(rootOpacity);
+    };
   }, [logoScale, logoOpacity, titleOpacity, rootOpacity, onFinish]);
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: rootOpacity.value }));
@@ -63,7 +63,10 @@ export default function SplashScreenComponent({
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }));
 
   return (
-    <Animated.View style={[styles.container, rootStyle]}>
+    <Animated.View
+      style={[styles.container, rootStyle]}
+      onLayout={() => { void SplashScreen.hideAsync().catch(() => {}); }}
+    >
       <Animated.View style={[styles.logoWrap, logoStyle]}>
         <Ionicons name="cloud" size={64} color={colors.primary} />
       </Animated.View>
