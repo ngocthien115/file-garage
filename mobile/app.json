@@ -29,7 +29,8 @@
     },
     "plugins": [
       "expo-splash-screen",
-      "expo-status-bar"
+      "expo-status-bar",
+      "./plugins/withApiNetwork"
     ],
     "extra": {
       "eas": {
