@@ -138,8 +138,8 @@ export default function FileListScreen() {
             <EmptyState
               icon="cloud-upload-outline"
               title="No files yet"
-              subtitle="Upload your first file to get started."
-              ctaLabel="Upload a file"
+              subtitle="Files you upload are listed here. Tap a file to open it."
+              ctaLabel="Upload"
               onCta={handlePickFile}
             />
           )}
@@ -167,12 +167,14 @@ export default function FileListScreen() {
           state.error ? (
             <Pressable
               onPress={handleReload}
-              style={styles.refreshError}
+              style={({ pressed }) => [styles.refreshError, pressed && styles.pressed]}
               accessibilityRole="button"
             >
+              <Ionicons name="cloud-offline-outline" size={18} color={colors.error} />
               <Text style={styles.refreshErrorText}>
-                Could not refresh files. Tap to retry.
+                Could not refresh files.
               </Text>
+              <Text style={styles.refreshErrorAction}>Retry</Text>
             </Pressable>
           ) : undefined
         }
@@ -182,23 +184,41 @@ export default function FileListScreen() {
     );
   };
 
+  const readyCount = state.files.filter((file) => file.status === "ready").length;
+  const activeCount = state.files.filter(
+    (file) => file.status === "uploading" || file.status === "saving",
+  ).length;
+  const host = settings.baseURL.replace(/^[a-z]+:\/\//i, "").replace(/\/$/, "");
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={styles.headerSafe}>
-        <Header onPickFile={handlePickFile} uploadDisabled={!settings.ready} />
+        <Header
+          onPickFile={handlePickFile}
+          uploadDisabled={!settings.ready}
+          fileCount={readyCount}
+          activeCount={activeCount}
+          loading={state.loading && state.files.length === 0}
+        />
         <Pressable
-          style={styles.serverButton}
+          style={({ pressed }) => [styles.serverButton, pressed && styles.pressed]}
           onPress={() => setSettingsVisible(true)}
           disabled={!settings.ready}
           accessibilityRole="button"
           accessibilityLabel={`API server settings. Current server: ${settings.baseURL}`}
         >
-          <Ionicons name="server-outline" size={16} color={colors.textMuted} />
+          <View
+            style={[
+              styles.serverDot,
+              { backgroundColor: !settings.ready || state.loading ? colors.warning : state.error ? colors.error : colors.success },
+            ]}
+          />
+          <Text style={styles.serverLabel}>Server</Text>
           <Text style={styles.serverURL} numberOfLines={1} ellipsizeMode="middle">
-            {settings.ready ? settings.baseURL : "Loading server settings…"}
+            {settings.ready ? host : "Loading…"}
           </Text>
-          <Ionicons name="options-outline" size={18} color={colors.primary} />
+          <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
         </Pressable>
       </SafeAreaView>
       <View style={styles.body}>
@@ -231,9 +251,12 @@ export default function FileListScreen() {
 interface HeaderProps {
   onPickFile: () => void;
   uploadDisabled: boolean;
+  fileCount: number;
+  activeCount: number;
+  loading: boolean;
 }
 
-function Header({ onPickFile, uploadDisabled }: HeaderProps) {
+function Header({ onPickFile, uploadDisabled, fileCount, activeCount, loading }: HeaderProps) {
   const uploadPressed = useSharedValue(0);
 
   const handleUploadPressIn = useCallback(() => {
@@ -250,35 +273,40 @@ function Header({ onPickFile, uploadDisabled }: HeaderProps) {
   }, [onPickFile]);
 
   const uploadStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 - uploadPressed.value * 0.1 }],
+    transform: [{ scale: 1 - uploadPressed.value * 0.06 }],
   }));
+
+  const subtitle = loading
+    ? "Fetching your files…"
+    : activeCount > 0
+      ? `${fileCount} ${fileCount === 1 ? "file" : "files"} · ${activeCount} uploading`
+      : `${fileCount} ${fileCount === 1 ? "file" : "files"} stored`;
 
   return (
     <View style={styles.header}>
       <View style={styles.brand}>
         <View style={styles.brandIcon}>
-          <Ionicons name="cloud" size={20} color={colors.primary} />
+          <Ionicons name="cloud" size={17} color={colors.textInverse} />
         </View>
-        <Text style={styles.headerTitle}>File Garage</Text>
+        <View style={styles.brandText}>
+          <Text style={styles.headerTitle} numberOfLines={1}>File Garage</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>{subtitle}</Text>
+        </View>
       </View>
-      <View style={styles.headerActions}>
-        <AnimatedPressable
-          style={[styles.uploadButton, uploadStyle]}
-          disabled={uploadDisabled}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: uploadDisabled }}
-          onPressIn={handleUploadPressIn}
-          onPressOut={handleUploadPressOut}
-          onPress={handleUpload}
-        >
-          <Ionicons
-            name="cloud-upload-outline"
-            size={20}
-            color={colors.textInverse}
-          />
-          <Text style={styles.uploadLabel}>Upload</Text>
-        </AnimatedPressable>
-      </View>
+      <AnimatedPressable
+        style={[styles.uploadButton, uploadDisabled && styles.disabled, uploadStyle]}
+        disabled={uploadDisabled}
+        accessibilityRole="button"
+        accessibilityLabel="Upload a file"
+        accessibilityState={{ disabled: uploadDisabled }}
+        onPressIn={handleUploadPressIn}
+        onPressOut={handleUploadPressOut}
+        onPress={handleUpload}
+        hitSlop={6}
+      >
+        <Ionicons name="add" size={18} color={colors.textInverse} />
+        <Text style={styles.uploadLabel}>Upload</Text>
+      </AnimatedPressable>
     </View>
   );
 }
@@ -286,86 +314,131 @@ function Header({ onPickFile, uploadDisabled }: HeaderProps) {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const styles = StyleSheet.create({
-  serverButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    minHeight: 44,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.sm,
-    backgroundColor: colors.background,
-  },
-  serverURL: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  refreshError: {
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: radii.md,
-    backgroundColor: colors.errorTint,
-  },
-  refreshErrorText: {
-    color: colors.error,
-    fontSize: 13,
-  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
   headerSafe: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.background,
     paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 24) : 0,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg + 4,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm + 2,
   },
   brand: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.sm + 2,
   },
   brandIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primaryTint,
+    width: 34,
+    height: 34,
+    borderRadius: radii.sm + 2,
+    borderCurve: "continuous",
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
+  brandText: {
+    flex: 1,
+    minWidth: 0,
+  },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: "700",
     color: colors.text,
+    letterSpacing: 0.38,
   },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
+  headerSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textMuted,
+    fontVariant: ["tabular-nums"],
   },
   uploadButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
+    flexShrink: 0,
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    minHeight: 36,
+    paddingLeft: spacing.sm + 2,
+    paddingRight: spacing.md + 2,
     borderRadius: radii.pill,
-    ...shadows.card,
+    borderCurve: "continuous",
   },
   uploadLabel: {
     color: colors.textInverse,
     fontSize: 14,
+    fontWeight: "700",
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  serverButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 44,
+    marginHorizontal: spacing.lg + 4,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: radii.md,
+    borderCurve: "continuous",
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  serverDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderCurve: "continuous",
+  },
+  serverLabel: {
+    fontSize: 13,
     fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  serverURL: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  refreshError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md + 2,
+    minHeight: 48,
+    marginBottom: spacing.md,
+    borderRadius: radii.md,
+    borderCurve: "continuous",
+    backgroundColor: colors.errorTint,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+  },
+  refreshErrorText: {
+    flex: 1,
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  refreshErrorAction: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: "700",
   },
   body: {
     flex: 1,
@@ -378,7 +451,9 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   listContent: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg + 4,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxl,
     flexGrow: 1,
   },
   emptyListContent: {

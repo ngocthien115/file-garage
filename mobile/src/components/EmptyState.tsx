@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
   withSpring,
 } from "react-native-reanimated";
-import { colors, spacing, radii } from "../theme";
+import { colors, spacing, radii, shadows } from "../theme";
 
 interface EmptyStateProps {
   icon?: React.ComponentProps<typeof Ionicons>["name"];
@@ -26,7 +26,7 @@ export default function EmptyState({
   onCta,
 }: EmptyStateProps) {
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(8);
+  const translateY = useSharedValue(12);
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 300 });
@@ -46,13 +46,22 @@ export default function EmptyState({
 
   return (
     <Animated.View style={[styles.container, style]}>
-      <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={48} color={colors.textMuted} />
+      <View style={styles.ringOuter}>
+        <View style={styles.ringInner}>
+          <View style={styles.iconWrap}>
+            <Ionicons name={icon} size={40} color={colors.primary} />
+          </View>
+        </View>
       </View>
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {ctaLabel && onCta ? (
-        <Pressable style={styles.cta} onPress={handleCta}>
+        <Pressable
+          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+          onPress={handleCta}
+          accessibilityRole="button"
+        >
+          <Ionicons name="add" size={20} color={colors.textInverse} />
           <Text style={styles.ctaText}>{ctaLabel}</Text>
         </Pressable>
       ) : null}
@@ -65,39 +74,72 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.xxl,
+    paddingBottom: spacing.xxl * 2,
   },
-  iconWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: radii.xl,
-    backgroundColor: colors.background,
+  ringOuter: {
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    borderCurve: "continuous",
+    backgroundColor: colors.primaryTint,
+    opacity: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  ringInner: {
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    borderCurve: "continuous",
+    backgroundColor: colors.card,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.card,
+  },
+  iconWrap: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderCurve: "continuous",
+    backgroundColor: colors.primaryTint,
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: colors.text,
     textAlign: "center",
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 14,
+    lineHeight: 20,
     color: colors.textMuted,
     textAlign: "center",
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
+    maxWidth: 280,
   },
   cta: {
     marginTop: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: radii.md,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.xl,
+    minHeight: 50,
+    borderRadius: radii.pill,
+    borderCurve: "continuous",
+  },
+  ctaPressed: {
+    backgroundColor: colors.primaryPressed,
   },
   ctaText: {
     color: colors.textInverse,
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

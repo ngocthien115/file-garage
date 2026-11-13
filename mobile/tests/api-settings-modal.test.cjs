@@ -40,8 +40,10 @@ function setup({ uploading = false, setItem = async () => {} } = {}) {
     "react-native": {
       ActivityIndicator: "Spinner", KeyboardAvoidingView: "KeyboardAvoidingView", Modal: "Modal",
       Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", TextInput: "Input", View: "View",
-      Platform: { OS: "android" }, StyleSheet: { create: (styles) => styles },
+      StatusBar: { currentHeight: 24 },
+      Platform: { OS: "android" }, StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
     },
+    "@expo/vector-icons": { Ionicons: "Icon" },
     "../api/serverSettings": settings,
     "../theme": { colors: {}, radii: {}, shadows: {}, spacing: {} },
   });

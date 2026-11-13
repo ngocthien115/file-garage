@@ -27,13 +27,13 @@ interface KindConfig {
 }
 
 const KIND_CONFIG: Record<FileKind, KindConfig> = {
-  pdf: { icon: "document-text-outline", tint: "#FEE2E2", fg: "#DC2626" },
-  image: { icon: "image-outline", tint: "#DCFCE7", fg: "#16A34A" },
-  archive: { icon: "archive-outline", tint: "#FEF3C7", fg: "#D97706" },
-  doc: { icon: "document-outline", tint: "#DBEAFE", fg: "#2563EB" },
-  video: { icon: "film-outline", tint: "#FCE7F3", fg: "#DB2777" },
-  audio: { icon: "musical-notes-outline", tint: "#EDE9FE", fg: "#7C3AED" },
-  default: { icon: "document-outline", tint: "#E2E8F0", fg: "#64748B" },
+  pdf: { icon: "document-text", tint: "#FFE4E6", fg: "#E11D48" },
+  image: { icon: "image", tint: "#D1FAE5", fg: "#059669" },
+  archive: { icon: "archive", tint: "#FEF3C7", fg: "#D97706" },
+  doc: { icon: "document", tint: "#DBEAFE", fg: "#2563EB" },
+  video: { icon: "film", tint: "#FCE7F3", fg: "#DB2777" },
+  audio: { icon: "musical-notes", tint: "#EDE9FE", fg: "#7C3AED" },
+  default: { icon: "document", tint: "#EEF0F6", fg: "#6B7280" },
 };
 
 const IMAGE_EXT = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "heic"];
@@ -53,8 +53,13 @@ const DOC_EXT = [
   "csv",
 ];
 
+function extension(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return dot > 0 ? fileName.slice(dot + 1).toLowerCase() : "";
+}
+
 function inferKind(fileName: string): FileKind {
-  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const ext = extension(fileName);
   if (ext === "pdf") return "pdf";
   if (IMAGE_EXT.includes(ext)) return "image";
   if (ARCHIVE_EXT.includes(ext)) return "archive";
@@ -106,7 +111,7 @@ export default function FileListItem({
   }, [canOpen, onPress]);
 
   const pressStyle = useAnimatedStyle(() => {
-    const scale = 1 - pressed.value * 0.03;
+    const scale = 1 - pressed.value * 0.03; // 0.97 on press
     return { transform: [{ scale }] };
   });
 
@@ -119,10 +124,26 @@ export default function FileListItem({
     };
   });
 
+  const ext = extension(file.fileName);
+  const host = file.url?.match(/^[a-z]+:\/\/([^/?#]+)/i)?.[1];
+  const meta =
+    file.status === "error"
+      ? `Upload failed · ${file.error ?? "Please try again."}`
+      : file.status === "saving"
+        ? "Finishing upload…"
+        : file.status === "uploading"
+          ? "Uploading…"
+          : [ext ? ext.toUpperCase() : "FILE", host].filter(Boolean).join(" · ");
+
   return (
-    <Animated.View style={[enterStyle, { marginBottom: spacing.sm }]}>
+    <Animated.View style={[styles.wrapper, enterStyle]}>
       <AnimatedPressable
-        style={[styles.card, pressStyle]}
+        style={[
+          styles.card,
+          busy && styles.cardBusy,
+          file.status === "error" && styles.cardError,
+          pressStyle,
+        ]}
         disabled={!canOpen}
         accessibilityRole="button"
         accessibilityLabel={file.fileName}
@@ -138,94 +159,135 @@ export default function FileListItem({
           <Text style={styles.fileName} numberOfLines={1} ellipsizeMode="middle">
             {file.fileName}
           </Text>
-          {file.status !== "ready" && (
-            <Text
-              style={[styles.status, file.status === "error" && styles.error]}
-              numberOfLines={2}
-              accessibilityLiveRegion="polite"
-            >
-              {file.status === "error"
-                ? `Upload failed. ${file.error ?? "Please try again."}`
-                : file.status === "saving" ? "Finishing upload…" : "Uploading…"}
-            </Text>
-          )}
+          <Text
+            style={[
+              styles.meta,
+              busy && styles.metaBusy,
+              file.status === "error" && styles.metaError,
+            ]}
+            numberOfLines={file.status === "error" ? 2 : 1}
+            accessibilityLiveRegion={file.status === "ready" ? undefined : "polite"}
+          >
+            {meta}
+          </Text>
         </View>
         {file.status !== "error" && (
           <View style={styles.indicator}>
             {busy ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
             )}
           </View>
         )}
       </AnimatedPressable>
       {file.status === "error" && (
-        <Pressable
-          onPress={onRetry}
-          style={styles.retry}
-          accessibilityRole="button"
-          accessibilityLabel={`Retry uploading ${file.fileName}`}
-        >
-          <Ionicons name="refresh" size={16} color={colors.primary} />
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
+        <View style={styles.retrySlot} pointerEvents="box-none">
+          <Pressable
+            onPress={onRetry}
+            style={({ pressed }) => [styles.retry, pressed && styles.retryPressed]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Retry uploading ${file.fileName}`}
+          >
+            <Ionicons name="refresh" size={14} color={colors.error} />
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
       )}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    marginBottom: spacing.sm + 2,
+  },
   card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.card,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    borderColor: colors.border,
     gap: spacing.md,
     ...shadows.card,
+  },
+  cardBusy: {
+    borderColor: colors.primarySoft,
+    backgroundColor: colors.primaryTint,
+  },
+  cardError: {
+    borderColor: colors.errorBorder,
+    // Leave room for the Retry pill that sits over the right edge.
+    paddingRight: 96,
+  },
+  iconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: radii.md,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "center",
   },
   fileInfo: {
     flex: 1,
     minWidth: 0,
-  },
-  indicator: {
-    width: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  status: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
-  error: {
-    color: colors.error,
-  },
-  retry: {
-    alignSelf: "flex-end",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    padding: spacing.sm,
-    minHeight: 44,
-  },
-  retryText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.sm,
-    alignItems: "center",
-    justifyContent: "center",
+    gap: 3,
   },
   fileName: {
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: "600",
     color: colors.text,
+    letterSpacing: -0.1,
+  },
+  meta: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.textMuted,
+    letterSpacing: 0.2,
+  },
+  metaBusy: {
+    color: colors.primary,
+  },
+  metaError: {
+    color: colors.error,
+    letterSpacing: 0,
+  },
+  indicator: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.pill,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retrySlot: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    right: spacing.md,
+    justifyContent: "center",
+  },
+  retry: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    minHeight: 34,
+    borderRadius: radii.pill,
+    borderCurve: "continuous",
+    backgroundColor: colors.errorTint,
+  },
+  retryPressed: {
+    opacity: 0.7,
+  },
+  retryText: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

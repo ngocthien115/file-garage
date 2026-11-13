@@ -25,16 +25,18 @@ interface SplashScreenComponentProps {
 export default function SplashScreenComponent({
   onFinish,
 }: SplashScreenComponentProps) {
-  const logoScale = useSharedValue(0);
+  const logoScale = useSharedValue(0.92);
   const logoOpacity = useSharedValue(0);
   const titleOpacity = useSharedValue(0);
+  const titleOffset = useSharedValue(8);
   const rootOpacity = useSharedValue(1);
 
   useEffect(() => {
     // Entrance: pop the logo in, then fade the title.
-    logoScale.value = withSpring(1, { damping: 12, stiffness: 120 });
+    logoScale.value = withSpring(1, { damping: 20, stiffness: 220 });
     logoOpacity.value = withTiming(1, { duration: 300 });
     titleOpacity.value = withDelay(150, withTiming(1, { duration: 300 }));
+    titleOffset.value = withDelay(150, withSpring(0, { damping: 16, stiffness: 140 }));
 
     // Splash timing is independent of the list request running underneath it.
     const fadeTimer = setTimeout(() => {
@@ -51,16 +53,20 @@ export default function SplashScreenComponent({
       cancelAnimation(logoScale);
       cancelAnimation(logoOpacity);
       cancelAnimation(titleOpacity);
+      cancelAnimation(titleOffset);
       cancelAnimation(rootOpacity);
     };
-  }, [logoScale, logoOpacity, titleOpacity, rootOpacity, onFinish]);
+  }, [logoScale, logoOpacity, titleOpacity, titleOffset, rootOpacity, onFinish]);
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: rootOpacity.value }));
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
     transform: [{ scale: logoScale.value }],
   }));
-  const titleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }));
+  const titleStyle = useAnimatedStyle(() => ({
+    opacity: titleOpacity.value,
+    transform: [{ translateY: titleOffset.value }],
+  }));
 
   return (
     <Animated.View
@@ -68,10 +74,13 @@ export default function SplashScreenComponent({
       onLayout={() => { void SplashScreen.hideAsync().catch(() => {}); }}
     >
       <Animated.View style={[styles.logoWrap, logoStyle]}>
-        <Ionicons name="cloud" size={64} color={colors.primary} />
+        <Ionicons name="cloud" size={56} color={colors.textInverse} />
       </Animated.View>
       <Animated.Text style={[styles.title, titleStyle]}>
         File Garage
+      </Animated.Text>
+      <Animated.Text style={[styles.tagline, titleStyle]}>
+        Your files, parked safely
       </Animated.Text>
     </Animated.View>
   );
@@ -90,18 +99,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoWrap: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
-    backgroundColor: colors.primaryTint,
+    width: 108,
+    height: 108,
+    borderRadius: 32,
+    borderCurve: "continuous",
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
+    boxShadow: "0px 12px 32px rgba(0, 0, 0, 0.16)",
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.36,
+  },
+  tagline: {
+    fontSize: 15,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
 });
